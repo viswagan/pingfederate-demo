@@ -1,0 +1,179 @@
+{
+  "info": {
+    "_postman_id": "8f2a1c4e-pf01-4d2a-9b7c-pingfeddemo01",
+    "name": "PingFederate + Spring Boot Demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "All endpoints for the PingFederate 13.x + Spring Boot 4.1 OAuth2/OIDC demo.\n\nFlows:\n- 1 OIDC browser login  (GET /profile)        — interactive, browser-only\n- 2 Opaque introspection (GET /api/secure,/echo) — run 'Get M2M Token' first\n- 3 M2M client credentials (GET /api/m2m)      — app fetches its own token\n\nSETUP (one-time): PingFederate uses a self-signed cert, so turn OFF\nSettings -> General -> 'SSL certificate verification' before running\n'Get M2M Token' (which calls https://localhost:9031). The app itself (:8080)\nis plain HTTP and needs nothing.\n\nThe 'Get M2M Token' request stores the access token in the collection\nvariable {{token}}, which the Bearer requests reuse."
+  },
+  "variable": [
+    { "key": "appBaseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "pfBaseUrl", "value": "https://localhost:9031", "type": "string" },
+    { "key": "m2mClientId", "value": "demo-m2m-client", "type": "string" },
+    { "key": "m2mClientSecret", "value": "M2mSecret123!", "type": "string" },
+    { "key": "rsClientId", "value": "demo-rs-client", "type": "string" },
+    { "key": "rsClientSecret", "value": "RsSecret123!", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "GET / (landing)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{appBaseUrl}}/",
+            "description": "Public landing page — returns demo metadata JSON."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /actuator/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{appBaseUrl}}/actuator/health",
+            "description": "Spring Actuator health probe — expect {\"status\":\"UP\"}."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/m2m  (Flow 3 — client credentials)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{appBaseUrl}}/api/m2m",
+            "description": "Flow 3. Public endpoint — the app fetches its own client_credentials token from PingFederate and calls a downstream service. No auth needed from the caller."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Flow 2 — Bearer token introspection",
+      "item": [
+        {
+          "name": "1. Get M2M Token  (saves {{token}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.access_token);",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('got an access_token', () => pm.expect(json.access_token).to.be.a('string').and.not.empty);",
+                  "console.log('Saved token:', json.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{m2mClientId}}" },
+                { "key": "client_secret", "value": "{{m2mClientSecret}}" },
+                { "key": "scope", "value": "api.read" }
+              ]
+            },
+            "url": "{{pfBaseUrl}}/as/token.oauth2",
+            "description": "Calls PingFederate directly for an opaque access token (client_credentials). The test script stores access_token in the {{token}} collection variable for the requests below.\n\nNOTE: this hits https://localhost:9031 (self-signed cert) — disable SSL verification in Postman settings first."
+          },
+          "response": []
+        },
+        {
+          "name": "2. GET /api/secure  (valid token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [ { "key": "token", "value": "{{token}}", "type": "string" } ]
+            },
+            "url": "{{appBaseUrl}}/api/secure",
+            "description": "Flow 2. Sends the Bearer token; the app introspects it against PingFederate and returns the token attributes. Run 'Get M2M Token' first."
+          },
+          "response": []
+        },
+        {
+          "name": "3. GET /api/echo  (valid token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [ { "key": "token", "value": "{{token}}", "type": "string" } ]
+            },
+            "url": "{{appBaseUrl}}/api/echo",
+            "description": "Second Bearer-protected endpoint — echoes the authenticated principal and authorities."
+          },
+          "response": []
+        },
+        {
+          "name": "4. GET /api/secure  (no token → 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 without a token', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": { "type": "noauth" },
+            "url": "{{appBaseUrl}}/api/secure",
+            "description": "Negative case — no Authorization header → 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "5. POST introspect (direct to PF)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{rsClientId}}", "type": "string" },
+                { "key": "password", "value": "{{rsClientSecret}}", "type": "string" }
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [ { "key": "token", "value": "{{token}}" } ]
+            },
+            "url": "{{pfBaseUrl}}/as/introspect.oauth2",
+            "description": "What the app does under the hood for Flow 2 — calls PingFederate's introspection endpoint as the resource-server client (demo-rs-client) to validate the token. Returns {\"active\": true, ...}.\n\nHits https://localhost:9031 (self-signed cert)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Flow 1 — OIDC login (browser)",
+      "item": [
+        {
+          "name": "GET /profile  (browser-only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{appBaseUrl}}/profile",
+            "description": "Flow 1 is a session-based, interactive Authorization-Code login — NOT a Bearer flow. In Postman this returns a 302 redirect to PingFederate's login page; it cannot complete the interactive login.\n\nUse a browser instead:\n  open http://localhost:8080/profile\n  log in as  user1 / Password1!\n\nOn success the app exchanges the code for tokens and /profile returns the ID-token claims."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+services:
+
+  pingfederate:
+    image: pingidentity/pingfederate:13.0.3-latest
+    container_name: pingfederate
+    environment:
+      - PING_IDENTITY_ACCEPT_EULA=YES
+      - CREATE_INITIAL_ADMIN_USER=true
+      - PING_IDENTITY_PASSWORD=${PF_ADMIN_PASSWORD:-Admin1234!}
+    ports:
+      - "9031:9031"
+      - "9999:9999"
+    volumes:
+      - pf-data:/opt/out
+      - ./pingfederate/PingFederate-13.0-Development.lic:/opt/in/instance/server/default/conf/pingfederate.lic
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null",
+             "https://localhost:9031/pf/heartbeat.ping", "--insecure"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  # PingFederate auto-config (optional)
+  # Only starts when the command is run: docker compose --profile autoconfig up
+  pingfederate-init:
+    profiles: ["autoconfig"]
+    image: pingidentity/pingfederate:13.0.3-latest
+    container_name: pingfederate-init
+    depends_on:
+      pingfederate:
+        condition: service_healthy
+    volumes:
+      - ./pingfederate/configure.sh:/configure.sh:ro
+    environment:
+      - PF_ADMIN_URL=https://pingfederate:9999
+      - PF_ADMIN_USER=${PF_ADMIN_USER:-admin}
+      - PF_ADMIN_PASSWORD=${PF_ADMIN_PASSWORD:-Admin1234!}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-demo-oidc-client}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-OidcSecret123!}
+      - RS_CLIENT_ID=${RS_CLIENT_ID:-demo-rs-client}
+      - RS_CLIENT_SECRET=${RS_CLIENT_SECRET:-RsSecret123!}
+      - M2M_CLIENT_ID=${M2M_CLIENT_ID:-demo-m2m-client}
+      - M2M_CLIENT_SECRET=${M2M_CLIENT_SECRET:-M2mSecret123!}
+    entrypoint: ["/bin/sh", "/configure.sh"]
+    restart: "no"
+
+volumes:
+  pf-data:

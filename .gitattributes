@@ -1,0 +1,26 @@
+# Normalize line endings for everyone, on every platform.
+#
+# `text=auto eol=lf` means: git treats files as text when it detects text,
+# stores them with LF in the repo, AND checks them out with LF in the working
+# tree on ALL platforms (including Windows/WSL) — regardless of each user's
+# core.autocrlf setting. This is what stops shell scripts from being checked
+# out with CRLF and breaking inside Linux containers.
+* text=auto eol=lf
+
+# Be explicit about the files that MUST be LF (Linux shell + container).
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Dockerfile  text eol=lf
+*.properties text eol=lf
+lombok.config text eol=lf
+
+# Windows-only scripts, if ever added, keep CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary files: never normalize (git usually auto-detects these, but be explicit).
+*.png       binary
+*.jpg       binary
+*.jar       binary
+*.lic       binary

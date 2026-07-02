@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: pingfed-demo
+
+  security:
+    oauth2:
+      client:
+        registration:
+
+          # Flow 1 — Browser OIDC login
+          pingfed-oidc:
+            client-id: ${OIDC_CLIENT_ID:demo-oidc-client}
+            client-secret: ${OIDC_CLIENT_SECRET:OidcSecret123!}
+            provider: pingfed
+            scope: openid, profile, email
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/pingfed-oidc"
+            client-name: PingFederate OIDC
+
+          # Flow 3 — Machine-to-machine client credentials
+          pingfed-m2m:
+            client-id: ${M2M_CLIENT_ID:demo-m2m-client}
+            client-secret: ${M2M_CLIENT_SECRET:M2mSecret123!}
+            provider: pingfed
+            scope: api.read
+            authorization-grant-type: client_credentials
+            client-name: PingFederate M2M
+
+        provider:
+          pingfed:
+            authorization-uri: ${PF_AUTH_URI:https://localhost:9031}/as/authorization.oauth2
+            token-uri: ${PF_ISSUER_URI:https://localhost:9031}/as/token.oauth2
+            user-info-uri: ${PF_ISSUER_URI:https://localhost:9031}/idp/userinfo.openid
+            jwk-set-uri: ${PF_ISSUER_URI:https://localhost:9031}/pf/JWKS
+            user-name-attribute: sub
+
+      resourceserver:
+        opaquetoken:
+          introspection-uri: ${PF_ISSUER_URI:https://localhost:9031}/as/introspect.oauth2
+          client-id: ${RS_CLIENT_ID:demo-rs-client}
+          client-secret: ${RS_CLIENT_SECRET:RsSecret123!}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  downstream-url: ${DOWNSTREAM_URL:http://localhost:8081}
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
