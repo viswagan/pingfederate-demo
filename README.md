@@ -281,3 +281,5 @@ If you want it in Postman, use Authorization → OAuth 2.0 with:
 The dev license lives at `pingfederate/PingFederate-13.0-Development.lic` — the
 volume mount in `docker-compose.yml` picks it up automatically on next start. To
 swap it, replace that file (or update the mount path in `docker-compose.yml`).
+
+The license file is not pushed to GitHub, so once must obtain include it after pulling the repo from Git.
